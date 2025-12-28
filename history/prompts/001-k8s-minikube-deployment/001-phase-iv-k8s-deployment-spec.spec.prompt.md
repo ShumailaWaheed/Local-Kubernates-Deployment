@@ -24,7 +24,6 @@ tests:
 
 ## Prompt
 
-```text
 # /sp.specification
 ## Hackathon II – Todo Project
 ## Phase IV: Local Kubernetes Deployment (Minikube)
@@ -46,7 +45,6 @@ This phase introduces **deployment infrastructure only**.
 **No application behavior, features, or APIs may change.**
 
 [... full specification content as provided by user, including sections 2-14 covering in-scope outcomes, containerization requirements, Kubernetes specifications, Helm requirements, configuration & secrets management, AI-assisted DevOps specifications, deployment flow, validation criteria, constraints summary, and specification lock ...]
-```
 
 ## Response snapshot
 
