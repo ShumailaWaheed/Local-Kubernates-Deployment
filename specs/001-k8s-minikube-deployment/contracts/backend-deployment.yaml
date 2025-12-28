@@ -1,0 +1,74 @@
+# Backend Deployment Contract
+# Phase IV - Kubernetes Resource Specification
+
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: todo-backend
+  namespace: todo-app
+  labels:
+    app: todo-backend
+    component: api
+    phase: iv
+spec:
+  replicas: 2  # FR-008: Support scaling to 2+ replicas
+  strategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxUnavailable: 1
+      maxSurge: 1
+  selector:
+    matchLabels:
+      app: todo-backend
+  template:
+    metadata:
+      labels:
+        app: todo-backend
+        component: api
+    spec:
+      restartPolicy: Always  # FR-032: Automatic recovery from pod failures
+      containers:
+        - name: backend
+          image: todo-backend:latest
+          imagePullPolicy: Never  # Minikube: images loaded locally
+          ports:
+            - containerPort: 8000
+              protocol: TCP
+          env:
+            # FR-018: Database connection from Secret
+            - name: DATABASE_URL
+              valueFrom:
+                secretKeyRef:
+                  name: db-secret
+                  key: DATABASE_URL
+            # FR-019: OpenAI API key from Secret
+            - name: OPENAI_API_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: openai-secret
+                  key: OPENAI_API_KEY
+          # FR-035: Health checks - liveness probe
+          livenessProbe:
+            httpGet:
+              path: /health/live
+              port: 8000
+            initialDelaySeconds: 30
+            periodSeconds: 10
+            timeoutSeconds: 3
+            failureThreshold: 3
+          # FR-035: Health checks - readiness probe (fails when DB unavailable)
+          readinessProbe:
+            httpGet:
+              path: /health/ready
+              port: 8000
+            initialDelaySeconds: 10
+            periodSeconds: 5
+            timeoutSeconds: 3
+            failureThreshold: 2
+          resources:
+            requests:
+              memory: "256Mi"
+              cpu: "250m"
+            limits:
+              memory: "512Mi"
+              cpu: "500m"

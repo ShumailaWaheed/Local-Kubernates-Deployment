@@ -1,0 +1,22 @@
+# Frontend Service Contract
+# Phase IV - Kubernetes Resource Specification
+
+apiVersion: v1
+kind: Service
+metadata:
+  name: todo-frontend
+  namespace: todo-app
+  labels:
+    app: todo-frontend
+    component: ui
+    phase: iv
+spec:
+  type: NodePort  # FR-009: Frontend accessible externally
+  selector:
+    app: todo-frontend
+  ports:
+    - protocol: TCP
+      port: 3000
+      targetPort: 3000
+      nodePort: 30080  # Fixed NodePort for consistent access
+      name: http

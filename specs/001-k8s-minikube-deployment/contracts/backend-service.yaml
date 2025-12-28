@@ -1,0 +1,21 @@
+# Backend Service Contract
+# Phase IV - Kubernetes Resource Specification
+
+apiVersion: v1
+kind: Service
+metadata:
+  name: todo-backend
+  namespace: todo-app
+  labels:
+    app: todo-backend
+    component: api
+    phase: iv
+spec:
+  type: ClusterIP  # FR-010: Backend accessible only within cluster
+  selector:
+    app: todo-backend
+  ports:
+    - protocol: TCP
+      port: 8000
+      targetPort: 8000
+      name: http
