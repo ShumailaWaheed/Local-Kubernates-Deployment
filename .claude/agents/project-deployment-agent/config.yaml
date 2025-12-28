@@ -1,0 +1,218 @@
+# Project Deployment Agent Configuration
+# =============================================================================
+
+agent:
+  name: project-deployment-agent
+  version: 1.0.0
+  description: |
+    Autonomous deployment agent for Next.js + FastAPI applications.
+    Handles Docker builds, Helm chart generation, Kubernetes deployment,
+    secrets management, and deployment validation.
+
+# =============================================================================
+# Environment Settings
+# =============================================================================
+settings:
+  # Deployment environment (dev, staging, prod)
+  environment: ${DEPLOY_ENV:-dev}
+
+  # Kubernetes namespace
+  namespace: ${NAMESPACE:-todo-dev}
+
+  # Docker image tag
+  image_tag: ${IMAGE_TAG:-latest}
+
+  # Timeouts (in seconds)
+  timeouts:
+    build: 600        # Docker build timeout
+    deploy: 300       # Helm deploy timeout
+    pod_ready: 120    # Pod readiness timeout
+    health_check: 60  # Health check timeout
+
+  # Retry configuration
+  retries:
+    max_attempts: 3
+    backoff_seconds: 10
+
+# =============================================================================
+# Skills Configuration
+# =============================================================================
+skills:
+  docker-image-builder:
+    path: .claude/skills/docker-image-builder/SKILL.md
+    enabled: true
+    config:
+      frontend:
+        image_name: todo-frontend
+        dockerfile: ./frontend/Dockerfile
+        context: ./frontend
+      backend:
+        image_name: todo-backend
+        dockerfile: ./backend/Dockerfile
+        context: ./backend
+
+  helm-chart-generator:
+    path: .claude/skills/helm-chart-generator/SKILL.md
+    enabled: true
+    config:
+      chart_path: ./helm/todo-app
+      values_files:
+        dev: values-dev.yaml
+        prod: values-prod.yaml
+
+  k8s-secrets-manager:
+    path: .claude/skills/k8s-secrets-manager/SKILL.md
+    enabled: true
+    config:
+      secrets:
+        - name: backend-secrets
+          required_keys:
+            - OPENAI_API_KEY
+          optional_keys:
+            - DATABASE_URL
+            - JWT_SECRET
+            - REDIS_URL
+        - name: frontend-secrets
+          required_keys: []
+          optional_keys:
+            - NEXTAUTH_SECRET
+            - NEXTAUTH_URL
+
+  k8s-deployer:
+    path: .claude/skills/k8s-deployer/SKILL.md
+    enabled: true
+    config:
+      release_name: todo-app
+      wait: true
+      atomic: true
+
+# =============================================================================
+# Phases Configuration
+# =============================================================================
+phases:
+  pre_deployment:
+    enabled: true
+    checks:
+      - docker_running
+      - minikube_running
+      - kubectl_configured
+      - helm_installed
+      - required_env_vars
+
+  build:
+    enabled: true
+    components:
+      - frontend
+      - backend
+    load_to_minikube: true
+
+  helm:
+    enabled: true
+    lint: true
+    template_validate: true
+
+  secrets:
+    enabled: true
+    create_namespace: true
+
+  deploy:
+    enabled: true
+    strategy: atomic  # atomic, rolling, recreate
+
+  validation:
+    enabled: true
+    checks:
+      - pod_status
+      - service_endpoints
+      - health_checks
+    collect_logs_on_failure: true
+
+# =============================================================================
+# Decision Authority
+# =============================================================================
+decisions:
+  accept:
+    # Conditions where agent can complete autonomously
+    - condition: all_pods_ready
+      description: All pods are in Running state and Ready
+    - condition: health_checks_pass
+      description: All health endpoints return 200
+    - condition: secrets_created
+      description: All required secrets exist
+    - condition: helm_release_deployed
+      description: Helm release status is "deployed"
+
+  escalate:
+    # Conditions that require human intervention
+    - condition: docker_build_failure
+      description: Docker build exited with non-zero code
+      action: collect_build_logs
+    - condition: missing_required_secrets
+      description: Required environment variables not set
+      action: list_missing_vars
+    - condition: pod_crash_loop
+      description: Pod in CrashLoopBackOff state
+      action: collect_pod_logs
+    - condition: health_check_failure
+      description: Health endpoint not responding after retries
+      action: collect_logs_and_events
+    - condition: timeout_exceeded
+      description: Operation exceeded configured timeout
+      action: collect_current_state
+    - condition: resource_quota_exceeded
+      description: Kubernetes resource quota exceeded
+      action: report_quota_status
+
+# =============================================================================
+# Health Checks
+# =============================================================================
+health_checks:
+  frontend:
+    endpoint: /api/health
+    port: 3000
+    expected_status: 200
+    timeout: 10
+    retries: 3
+
+  backend:
+    endpoint: /health
+    port: 8000
+    expected_status: 200
+    timeout: 10
+    retries: 3
+
+# =============================================================================
+# Logging & Reporting
+# =============================================================================
+logging:
+  level: info  # debug, info, warn, error
+  output:
+    console: true
+    file: ./logs/deployment-${DEPLOY_ENV}.log
+  format: text  # text, json
+
+reporting:
+  format: structured  # structured, json, minimal
+  include:
+    - deployment_status
+    - pod_summary
+    - service_summary
+    - health_check_results
+    - access_urls
+    - errors_and_warnings
+  output:
+    console: true
+    file: ./logs/deployment-report-${DEPLOY_ENV}.json
+
+# =============================================================================
+# Notifications (Optional - for future extension)
+# =============================================================================
+notifications:
+  enabled: false
+  on_success: false
+  on_failure: true
+  channels: []
+    # - type: slack
+    #   webhook: ${SLACK_WEBHOOK_URL}
+    # - type: email
+    #   recipients: [team@example.com]
